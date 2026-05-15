@@ -12,44 +12,6 @@ type Parser struct {
 	peekToken token.Token
 }
 
-func (p *Parser) ParseIdentifier() &ast.Identifier{
-	identifier := nil
-	if p.curToken.Type == token.IDENT{
-		identifier = &ast.Identifier
-		identifier.Token = token.IDENT
-		identifier.Value = p.curToken.Literal
-	}
-	return identifier
-}
-
-func (p *Parser) ParseExpression() &ast.Expression{
-	if (p.curToken.Type == token.INT){
-		if (p.peekToken.Type == token.PLUS){
-			return p.ParseOperatorExpression()
-		} else if (p.peekToken.Type == token.EOF){
-			return p.ParseIntegerLiteral()
-		}
-	}
-}
-
-func (p *Parser) ParseLetStatement() ast.LetStatement {
-	p.nextToken()
-	identifier := p.ParseIdentifier()
-	p.nextToken()
-	if p.curToken != token.ASSIGN {
-		return nil
-	}
-	p.nextToken()
-	value = p.ParseExpression()
-
-	statement := &ast.LetStatement{}
-	statement.Token = token.LET
-	statement.Name = identifier
-	statement.Value = value
-
-	return statement
-}
-
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{lexer: l}
 	p.nextToken()
@@ -57,28 +19,68 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
+func (p *Parser) parseLetStatement() *ast.LetStatement {
+	statement := &ast.LetStatement{Token: p.curToken}
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	statement.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.ASSIGN) {
+		return nil
+	}
+
+	// TODO: Skipping expressions until we encounter a semicolon
+	for !p.curTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return statement
+}
+func (p *Parser) parseStatement() ast.Statement {
+	switch p.curToken.Type {
+	case token.LET:
+		return p.parseLetStatement()
+	default:
+		return nil
+	}
+}
+
+func (p *Parser) ParseProgram() *ast.Program {
+	program := &ast.Program{}
+	program.Statements = []ast.Statement{}
+
+	for p.curToken.Type != token.EOF {
+
+		statement := p.parseStatement()
+
+		if statement != nil {
+			program.Statements = append(program.Statements, statement)
+		}
+		p.nextToken()
+
+	}
+	return program
+}
+
 func (p *Parser) nextToken() {
 	p.curToken = p.peekToken
 	p.peekToken = p.lexer.NextToken()
 }
 
-func (p *Parser) ParseProgram() *ast.Program {
-	program := &ast.Program
-
-	for p.curToken != token.EOF {
-
-		statement := null
-		if p.curToken == token.LET {
-			statement := p.parseLetStatement()
-		} else if p.curToken == token.RETURN {
-			statement := p.parseReturnStatement()
-		}
-
-		if statement != null {
-			program.Statements.push(statement)
-		}
+func (p *Parser) expectPeek(tokenType token.TokenType) bool {
+	if p.peekTokenIs(tokenType) {
 		p.nextToken()
+		return true
+	} else {
+		return false
 	}
-	return program
 }
 
+func (p *Parser) curTokenIs(tokenType token.TokenType) bool {
+	return p.curToken.Type == tokenType
+}
+
+func (p *Parser) peekTokenIs(tokenType token.TokenType) bool {
+	return p.peekToken.Type == tokenType
+}
